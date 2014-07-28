@@ -1,5 +1,5 @@
 /*
- * arch/arm/mach-tegra/board-grouper-power.c
+ * arch/arm/mach-tegra/board-kai-power.c
  *
  * Copyright (C) 2012 NVIDIA, Inc.
  *
@@ -39,7 +39,7 @@
 
 #include "gpio-names.h"
 #include "board.h"
-#include "board-grouper.h"
+#include "board-kai.h"
 #include "pm.h"
 #include "tegra3_tsensor.h"
 
@@ -319,7 +319,7 @@ static struct i2c_board_info __initdata max77663_regulators[] = {
 	},
 };
 
-static int __init grouper_max77663_regulator_init(void)
+static int __init kai_max77663_regulator_init(void)
 {
 	void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
 	u32 pmc_ctrl;
@@ -513,17 +513,17 @@ FIXED_REG(10, en_3v3_fuse_a01,	en_3v3_fuse,		FIXED_SUPPLY(en_3v3_sys_a01),
 	ADD_FIXED_REG(en_vdd_sdmmc1_a01),	\
 	ADD_FIXED_REG(en_3v3_fuse_a01),		\
 
-/* Gpio switch regulator platform data for Grouper A00 */
+/* Gpio switch regulator platform data for Kai A00 */
 static struct platform_device *fixed_reg_devs_a00[] = {
 	E1565_A00_FIXED_REG
 };
 
-/* Gpio switch regulator platform data for Grouper A01 */
+/* Gpio switch regulator platform data for Kai A01 */
 static struct platform_device *fixed_reg_devs_a01[] = {
 	E1565_A01_FIXED_REG
 };
 
-static int __init grouper_fixed_regulator_init(void)
+static int __init kai_fixed_regulator_init(void)
 {
 	int i;
 	struct board_info board_info;
@@ -540,7 +540,7 @@ static int __init grouper_fixed_regulator_init(void)
 		nfixreg_devs = ARRAY_SIZE(fixed_reg_devs_a01);
 	}
 
-	if (!machine_is_grouper())
+	if (!machine_is_kai())
 		return 0;
 
 	for (i = 0; i < nfixreg_devs; ++i) {
@@ -548,13 +548,14 @@ static int __init grouper_fixed_regulator_init(void)
 		struct fixed_voltage_config *fixed_reg_pdata =
 			fixed_reg_devs[i]->dev.platform_data;
 		gpio_nr = fixed_reg_pdata->gpio;
+
 	}
 
 	return platform_add_devices(fixed_reg_devs, nfixreg_devs);
 }
-subsys_initcall_sync(grouper_fixed_regulator_init);
+subsys_initcall_sync(kai_fixed_regulator_init);
 
-int __init grouper_regulator_init(void)
+int __init kai_regulator_init(void)
 {
 	void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
 	u32 pmc_ctrl;
@@ -566,26 +567,26 @@ int __init grouper_regulator_init(void)
 	pmc_ctrl = readl(pmc + PMC_CTRL);
 	writel(pmc_ctrl | PMC_CTRL_INTR_LOW, pmc + PMC_CTRL);
 
-	ret = grouper_max77663_regulator_init();
+	ret = kai_max77663_regulator_init();
 	if (ret < 0)
 		return ret;
 
 	return 0;
 }
 
-static void grouper_board_suspend(int lp_state, enum suspend_stage stg)
+static void kai_board_suspend(int lp_state, enum suspend_stage stg)
 {
 	if ((lp_state == TEGRA_SUSPEND_LP1) && (stg == TEGRA_SUSPEND_BEFORE_CPU))
 		tegra_console_uart_suspend();
 }
 
-static void grouper_board_resume(int lp_state, enum resume_stage stg)
+static void kai_board_resume(int lp_state, enum resume_stage stg)
 {
 	if ((lp_state == TEGRA_SUSPEND_LP1) && (stg == TEGRA_RESUME_AFTER_CPU))
 		tegra_console_uart_resume();
 }
 
-static struct tegra_suspend_platform_data grouper_suspend_data = {
+static struct tegra_suspend_platform_data kai_suspend_data = {
 	.cpu_timer	= 2000,
 	.cpu_off_timer	= 200,
 	.suspend_mode	= TEGRA_SUSPEND_LP0,
@@ -594,8 +595,8 @@ static struct tegra_suspend_platform_data grouper_suspend_data = {
 	.corereq_high	= true,
 	.sysclkreq_high	= true,
 	.cpu_lp2_min_residency = 2000,
-	.board_suspend = grouper_board_suspend,
-	.board_resume = grouper_board_resume,
+	.board_suspend = kai_board_suspend,
+	.board_resume = kai_board_resume,
 #ifdef CONFIG_TEGRA_LP1_950
 	.lp1_lowvolt_support = true,
 	.i2c_base_addr = TEGRA_I2C5_BASE,
@@ -607,9 +608,9 @@ static struct tegra_suspend_platform_data grouper_suspend_data = {
 #endif
 };
 
-int __init grouper_suspend_init(void)
+int __init kai_suspend_init(void)
 {
-	tegra_init_suspend(&grouper_suspend_data);
+	tegra_init_suspend(&kai_suspend_data);
 	return 0;
 }
 
@@ -624,14 +625,14 @@ static struct tegra_tsensor_pmu_data  tpdata = {
 	.pmu_i2c_addr = 0x2D,
 };
 
-void __init grouper_tsensor_init(void)
+void __init kai_tsensor_init(void)
 {
 	tegra3_tsensor_init(&tpdata);
 }
 
 #ifdef CONFIG_TEGRA_EDP_LIMITS
 
-int __init grouper_edp_init(void)
+int __init kai_edp_init(void)
 {
 	unsigned int regulator_mA;
 
@@ -644,81 +645,3 @@ int __init grouper_edp_init(void)
 	return 0;
 }
 #endif
-
-unsigned int boot_reason=0;
-void tegra_booting_info(void )
-{
-	static void __iomem *pmc = IO_ADDRESS(TEGRA_PMC_BASE);
-	unsigned int reg;
-	#define PMC_RST_STATUS_WDT (1)
-	#define PMC_RST_STATUS_SW   (3)
-
-	reg = readl(pmc +0x1b4);
-	printk("tegra_booting_info reg=%x\n",reg );
-
-	if (reg ==PMC_RST_STATUS_SW){
-		boot_reason=PMC_RST_STATUS_SW;
-		printk("tegra_booting_info-SW reboot\n");
-	} else if (reg ==PMC_RST_STATUS_WDT){
-		boot_reason=PMC_RST_STATUS_WDT;
-		printk("tegra_booting_info-watchdog reboot\n");
-	} else{
-		boot_reason=0;
-		printk("tegra_booting_info-normal\n");
-	}
-}
-
-#define TIMER_PTV			0
-#define TIMER_EN			(1 << 31)
-#define TIMER_PERIODIC			(1 << 30)
-#define TIMER_PCR			0x4
-#define TIMER_PCR_INTR			(1 << 30)
-#define WDT_CFG				(0)
-#define WDT_CFG_TMR_SRC		(0 << 0) /* for TMR10. */
-#define WDT_CFG_PERIOD			(1 << 4)
-#define WDT_CFG_INT_EN			(1 << 12)
-#define WDT_CFG_SYS_RST_EN		(1 << 14)
-#define WDT_CFG_PMC2CAR_RST_EN		(1 << 15)
-#define WDT_CMD				(8)
-#define WDT_CMD_START_COUNTER		(1 << 0)
-#define WDT_CMD_DISABLE_COUNTER	(1 << 1)
-#define WDT_UNLOCK			(0xC)
-#define WDT_UNLOCK_PATTERN		(0xC45A << 0)
-
-void tegra_watchdog_enable(unsigned int timeout)
-{
-#ifdef ENABLE_HW_WATCHDOG//#ifndef CONFIG_DEBUG_SLAB
-	u32 val;
-	printk("tegra_watchdog_enable timeout=%u\n",timeout);
-	if (timeout<=0)
-		return;
-	val = (timeout * 1000000ul) / 4;
-	val |= (TIMER_EN | TIMER_PERIODIC);
-	writel(val, watchdog_timer + TIMER_PTV);
-
-	val = WDT_CFG_TMR_SRC | WDT_CFG_PERIOD | WDT_CFG_INT_EN |
-		/*WDT_CFG_SYS_RST_EN|*/ WDT_CFG_PMC2CAR_RST_EN;
-	writel(val, watchdog_source  + WDT_CFG);
-	writel(WDT_CMD_START_COUNTER, watchdog_source  + WDT_CMD);
-#endif
-}
-
- void tegra_watchdog_disable(void )
-{
-#ifdef ENABLE_HW_WATCHDOG//#ifndef CONFIG_DEBUG_SLAB
-	printk("tegra_watchdog_disable\n");
-	writel(WDT_UNLOCK_PATTERN, watchdog_source + WDT_UNLOCK);
-	writel(WDT_CMD_DISABLE_COUNTER, watchdog_source  + WDT_CMD);
-
-	writel(0, watchdog_timer+ TIMER_PTV);
-#endif
-}
-void tegra_watchdog_touch( unsigned int timeout )
-{
-#ifdef ENABLE_HW_WATCHDOG//#ifndef CONFIG_DEBUG_SLAB
-	u32 val;
-	printk("tegra_watchdog_touch\n");
-	writel(WDT_CMD_START_COUNTER, watchdog_source + WDT_CMD);
-#endif
-}
-

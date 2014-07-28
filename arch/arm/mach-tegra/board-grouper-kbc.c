@@ -1,6 +1,6 @@
 /*
- * arch/arm/mach-tegra/board-grouper-kbc.c
- * Keys configuration for Nvidia tegra3 grouper platform.
+ * arch/arm/mach-tegra/board-kai-kbc.c
+ * Keys configuration for Nvidia tegra3 kai platform.
  *
  * Copyright (C) 2012 NVIDIA, Inc.
  *
@@ -35,7 +35,7 @@
 #include <mach/gpio-tegra.h>
 
 #include "board.h"
-#include "board-grouper.h"
+#include "board-kai.h"
 
 #include "gpio-names.h"
 #include "devices.h"
@@ -51,38 +51,45 @@
 		.debounce_interval = 10,	\
 	}
 
-static struct gpio_keys_button grouper_keys[] = {
-	[0] = GPIO_KEY(KEY_POWER, PV0, 1),
-	[1] = GPIO_KEY(KEY_VOLUMEUP, PQ2, 0),
-	[2] = GPIO_KEY(KEY_VOLUMEDOWN, PQ3, 0),
+#define GPIO_IKEY(_id, _irq, _iswake, _deb)	\
+	{					\
+		.code = _id,			\
+		.gpio = -1,			\
+		.irq = _irq,			\
+		.desc = #_id,			\
+		.type = EV_KEY,			\
+		.wakeup = _iswake,		\
+		.debounce_interval = _deb,	\
+	}
+
+static struct gpio_keys_button kai_keys[] = {
+	[0] = GPIO_KEY(KEY_MENU, PR2, 0),
+	[1] = GPIO_KEY(KEY_BACK, PQ1, 0),
+	[2] = GPIO_KEY(KEY_HOME, PQ0, 0),
+	[3] = GPIO_KEY(KEY_SEARCH, PQ3, 0),
+	[4] = GPIO_KEY(KEY_VOLUMEUP, PR1, 0),
+	[5] = GPIO_KEY(KEY_VOLUMEDOWN, PR0, 0),
+	[6] = GPIO_IKEY(KEY_POWER, MAX77663_IRQ_BASE + MAX77663_IRQ_ONOFF_EN0_FALLING, 0, 100),
+	[7] = GPIO_IKEY(KEY_POWER, MAX77663_IRQ_BASE + MAX77663_IRQ_ONOFF_EN0_1SEC, 0, 3000),
 };
 
-static struct gpio_keys_platform_data grouper_keys_platform_data = {
-	.buttons	= grouper_keys,
-	.nbuttons	= ARRAY_SIZE(grouper_keys),
+static struct gpio_keys_platform_data kai_keys_platform_data = {
+	.buttons	= kai_keys,
+	.nbuttons	= ARRAY_SIZE(kai_keys),
 };
 
-static struct platform_device grouper_keys_device = {
+static struct platform_device kai_keys_device = {
 	.name   = "gpio-keys",
 	.id     = 0,
 	.dev    = {
-		.platform_data  = &grouper_keys_platform_data,
+		.platform_data  = &kai_keys_platform_data,
 	},
 };
 
-int __init grouper_keys_init(void)
+int __init kai_keys_init(void)
 {
-	int i;
-	struct board_info board_info;
-
-	tegra_get_board_info(&board_info);
-	BUG_ON(board_info.board_id != BOARD_E1565);
-
 	pr_info("Registering gpio keys\n");
-
-	/* Enable gpio mode for other pins */
-	for (i = 0; i < grouper_keys_platform_data.nbuttons; i++)
-	platform_device_register(&grouper_keys_device);
+	platform_device_register(&kai_keys_device);
 
 	return 0;
 }

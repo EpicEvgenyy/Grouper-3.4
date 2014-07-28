@@ -1,5 +1,5 @@
 /*
- * arch/arm/mach-tegra/board-grouper.c
+ * arch/arm/mach-tegra/board-kai.c
  *
  * Copyright (c) 2012-2013, NVIDIA CORPORATION. All rights reserved.
  *
@@ -63,12 +63,12 @@
 #include <mach/usb_phy.h>
 #include <mach/gpio-tegra.h>
 #include <mach/tegra_fiq_debugger.h>
-#include <mach/board-grouper-misc.h>
+#include <mach/tegra_wakeup_monitor.h>
 
 #include "board.h"
 #include "board-common.h"
 #include "clock.h"
-#include "board-grouper.h"
+#include "board-kai.h"
 #include "board-touch-raydium.h"
 #include "devices.h"
 #include "gpio-names.h"
@@ -77,45 +77,18 @@
 #include "wdt-recovery.h"
 #include "common.h"
 
-static unsigned long retry_suspend;
-
-static int plat_kim_suspend(struct platform_device *pdev, pm_message_t state)
-{
-	struct kim_data_s *kim_gdata;
-	struct st_data_s *core_data;
-	kim_gdata = dev_get_drvdata(&pdev->dev);
-	core_data = kim_gdata->core_data;
-	if (st_ll_getstate(core_data) != ST_LL_INVALID) {
-		/* Prevent suspend until sleep indication from chip */
-		while (st_ll_getstate(core_data) != ST_LL_ASLEEP &&
-			(retry_suspend++ < 5)) {
-				return -1;
-		}
-	}
-	return 0;
-}
-
-static int plat_kim_resume(struct platform_device *pdev)
-{
-	retry_suspend = 0;
-	return 0;
-}
-
-
 /* wl128x BT, FM, GPS connectivity chip */
-struct ti_st_plat_data wilink_pdata = {
-	.nshutdown_gpio	= TEGRA_GPIO_PU0,
-	.dev_name	= BLUETOOTH_UART_DEV_NAME,
-	.flow_cntrl	= 1,
-	.baud_rate	= 3000000,
-	.suspend	= plat_kim_suspend,
-	.resume		= plat_kim_resume,
+struct ti_st_plat_data kai_wilink_pdata = {
+	.nshutdown_gpio = TEGRA_GPIO_PU0,
+	.dev_name = BLUETOOTH_UART_DEV_NAME,
+	.flow_cntrl = 1,
+	.baud_rate = 3000000,
 };
 
 static struct platform_device wl128x_device = {
 	.name		= "kim",
 	.id		= -1,
-	.dev.platform_data = &wilink_pdata,
+	.dev.platform_data = &kai_wilink_pdata,
 };
 
 static struct platform_device btwilink_device = {
@@ -123,21 +96,48 @@ static struct platform_device btwilink_device = {
 	.id = -1,
 };
 
-static noinline void __init grouper_bt_st(void)
+static noinline void __init kai_bt_st(void)
 {
-	pr_info("grouper_bt_st");
+	pr_info("kai_bt_st");
 
 	platform_device_register(&wl128x_device);
 	platform_device_register(&btwilink_device);
-	return;
 }
 
-static __initdata struct tegra_clk_init_table grouper_clk_init_table[] = {
+static struct resource kai_bluesleep_resources[] = {
+	[0] = {
+		.name = "gpio_host_wake",
+			.start  = TEGRA_GPIO_PU6,
+			.end    = TEGRA_GPIO_PU6,
+			.flags  = IORESOURCE_IO,
+	},
+	[1] = {
+		.name = "host_wake",
+			.flags	= IORESOURCE_IRQ | IORESOURCE_IRQ_HIGHEDGE,
+	},
+};
+
+static struct platform_device kai_bluesleep_device = {
+	.name		= "bluesleep",
+	.id		= 0,
+	.num_resources	= ARRAY_SIZE(kai_bluesleep_resources),
+	.resource	= kai_bluesleep_resources,
+};
+
+static noinline void __init kai_tegra_setup_tibluesleep(void)
+{
+	kai_bluesleep_device.resource[1].start =
+		kai_bluesleep_device.resource[1].end =
+			gpio_to_irq(TEGRA_GPIO_PU6);
+	platform_device_register(&kai_bluesleep_device);
+}
+
+static __initdata struct tegra_clk_init_table kai_clk_init_table[] = {
 	/* name		parent		rate		enabled */
 	{ "pll_m",	NULL,		0,		false},
 	{ "hda",	"pll_p",	108000000,	false},
 	{ "hda2codec_2x", "pll_p",	48000000,	false},
-	{ "pwm",	"pll_p",	5120000,	false},
+	{ "pwm",	"pll_p",	3187500,	false},
 	{ "blink",	"clk_32k",	32768,		true},
 	{ "i2s1",	"pll_a_out0",	0,		false},
 	{ "i2s3",	"pll_a_out0",	0,		false},
@@ -164,14 +164,14 @@ static struct pn544_i2c_platform_data nfc_pdata = {
 	.firm_gpio = TEGRA_GPIO_PR3,
 };
 
-static struct i2c_board_info __initdata grouper_nfc_board_info[] = {
+static struct i2c_board_info __initdata kai_nfc_board_info[] = {
 	{
 		I2C_BOARD_INFO("pn544", 0x28),
 		.platform_data = &nfc_pdata,
 	},
 };
 
-static struct tegra_i2c_platform_data grouper_i2c1_platform_data = {
+static struct tegra_i2c_platform_data kai_i2c1_platform_data = {
 	.adapter_nr	= 0,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 100000, 0 },
@@ -180,7 +180,7 @@ static struct tegra_i2c_platform_data grouper_i2c1_platform_data = {
 	.arb_recovery = arb_lost_recovery,
 };
 
-static struct tegra_i2c_platform_data grouper_i2c2_platform_data = {
+static struct tegra_i2c_platform_data kai_i2c2_platform_data = {
 	.adapter_nr	= 1,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 100000, 0 },
@@ -190,7 +190,7 @@ static struct tegra_i2c_platform_data grouper_i2c2_platform_data = {
 	.arb_recovery = arb_lost_recovery,
 };
 
-static struct tegra_i2c_platform_data grouper_i2c3_platform_data = {
+static struct tegra_i2c_platform_data kai_i2c3_platform_data = {
 	.adapter_nr	= 2,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 100000, 0 },
@@ -199,7 +199,7 @@ static struct tegra_i2c_platform_data grouper_i2c3_platform_data = {
 	.arb_recovery = arb_lost_recovery,
 };
 
-static struct tegra_i2c_platform_data grouper_i2c4_platform_data = {
+static struct tegra_i2c_platform_data kai_i2c4_platform_data = {
 	.adapter_nr	= 3,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 10000, 0 },
@@ -208,7 +208,7 @@ static struct tegra_i2c_platform_data grouper_i2c4_platform_data = {
 	.arb_recovery = arb_lost_recovery,
 };
 
-static struct tegra_i2c_platform_data grouper_i2c5_platform_data = {
+static struct tegra_i2c_platform_data kai_i2c5_platform_data = {
 	.adapter_nr	= 4,
 	.bus_count	= 1,
 	.bus_clk_rate	= { 400000, 0 },
@@ -240,14 +240,14 @@ static struct at24_platform_data eeprom_info = {
 	.setup		= get_mac_addr,
 };
 
-static struct i2c_board_info grouper_i2c4_max17048_board_info[] = {
+static struct i2c_board_info kai_i2c4_max17048_board_info[] = {
 	{
 		I2C_BOARD_INFO("max17048", 0x36),
 		.platform_data = &max17048_mdata,
 	},
 };
 
-static struct i2c_board_info grouper_eeprom_mac_add = {
+static struct i2c_board_info kai_eeprom_mac_add = {
 	I2C_BOARD_INFO("at24", 0x56),
 	.platform_data = &eeprom_info,
 };
@@ -269,7 +269,7 @@ static struct smb349_charger_platform_data smb349_charger_pdata = {
 	.num_otg_consumer_supplies = ARRAY_SIZE(smb349_otg_vbus_supply),
 };
 
-static struct i2c_board_info grouper_i2c4_smb349_board_info[] = {
+static struct i2c_board_info kai_i2c4_smb349_board_info[] = {
 	{
 		I2C_BOARD_INFO("smb349", 0x1B),
 		.platform_data = &smb349_charger_pdata,
@@ -284,17 +284,17 @@ static struct i2c_board_info __initdata rt5639_board_info = {
 	I2C_BOARD_INFO("rt5639", 0x1c),
 };
 
-static void grouper_i2c_init(void)
+static void kai_i2c_init(void)
 {
 	struct board_info board_info;
 
 	tegra_get_board_info(&board_info);
 
-	tegra_i2c_device1.dev.platform_data = &grouper_i2c1_platform_data;
-	tegra_i2c_device2.dev.platform_data = &grouper_i2c2_platform_data;
-	tegra_i2c_device3.dev.platform_data = &grouper_i2c3_platform_data;
-	tegra_i2c_device4.dev.platform_data = &grouper_i2c4_platform_data;
-	tegra_i2c_device5.dev.platform_data = &grouper_i2c5_platform_data;
+	tegra_i2c_device1.dev.platform_data = &kai_i2c1_platform_data;
+	tegra_i2c_device2.dev.platform_data = &kai_i2c2_platform_data;
+	tegra_i2c_device3.dev.platform_data = &kai_i2c3_platform_data;
+	tegra_i2c_device4.dev.platform_data = &kai_i2c4_platform_data;
+	tegra_i2c_device5.dev.platform_data = &kai_i2c5_platform_data;
 
 	platform_device_register(&tegra_i2c_device5);
 	platform_device_register(&tegra_i2c_device4);
@@ -302,8 +302,8 @@ static void grouper_i2c_init(void)
 	platform_device_register(&tegra_i2c_device2);
 	platform_device_register(&tegra_i2c_device1);
 
-	i2c_register_board_info(4, grouper_i2c4_smb349_board_info,
-		ARRAY_SIZE(grouper_i2c4_smb349_board_info));
+	i2c_register_board_info(4, kai_i2c4_smb349_board_info,
+		ARRAY_SIZE(kai_i2c4_smb349_board_info));
 
 	rt5639_board_info.irq = rt5640_board_info.irq =
 		gpio_to_irq(TEGRA_GPIO_CDC_IRQ);
@@ -312,16 +312,16 @@ static void grouper_i2c_init(void)
 	else
 		i2c_register_board_info(4, &rt5639_board_info, 1);
 
-	i2c_register_board_info(4, &grouper_eeprom_mac_add, 1);
+	i2c_register_board_info(4, &kai_eeprom_mac_add, 1);
 
-	i2c_register_board_info(4, grouper_i2c4_max17048_board_info,
-		ARRAY_SIZE(grouper_i2c4_max17048_board_info));
+	i2c_register_board_info(4, kai_i2c4_max17048_board_info,
+		ARRAY_SIZE(kai_i2c4_max17048_board_info));
 
-	grouper_nfc_board_info[0].irq = gpio_to_irq(TEGRA_GPIO_PX0);
-	i2c_register_board_info(0, grouper_nfc_board_info, 1);
+	kai_nfc_board_info[0].irq = gpio_to_irq(TEGRA_GPIO_PX0);
+	i2c_register_board_info(0, kai_nfc_board_info, 1);
 }
 
-static struct platform_device *grouper_uart_devices[] __initdata = {
+static struct platform_device *kai_uart_devices[] __initdata = {
 	&tegra_uarta_device,
 	&tegra_uartb_device,
 	&tegra_uartc_device,
@@ -336,8 +336,8 @@ static struct uart_clk_parent uart_parent_clk[] = {
 #endif
 };
 
-static struct tegra_uart_platform_data grouper_uart_pdata;
-static struct tegra_uart_platform_data grouper_loopback_uart_pdata;
+static struct tegra_uart_platform_data kai_uart_pdata;
+static struct tegra_uart_platform_data kai_loopback_uart_pdata;
 
 static void __init uart_debug_init(void)
 {
@@ -346,11 +346,12 @@ static void __init uart_debug_init(void)
 	debug_port_id = uart_console_debug_init(3);
 	if (debug_port_id < 0)
 		return;
-	grouper_uart_devices[debug_port_id] = uart_console_debug_device;
+	kai_uart_devices[debug_port_id] = uart_console_debug_device;
+
 	return;
 }
 
-static void __init grouper_uart_init(void)
+static void __init kai_uart_init(void)
 {
 	struct clk *c;
 	int i;
@@ -365,25 +366,25 @@ static void __init grouper_uart_init(void)
 		uart_parent_clk[i].parent_clk = c;
 		uart_parent_clk[i].fixed_clk_rate = clk_get_rate(c);
 	}
-	grouper_uart_pdata.parent_clk_list = uart_parent_clk;
-	grouper_uart_pdata.parent_clk_count = ARRAY_SIZE(uart_parent_clk);
-	grouper_loopback_uart_pdata.parent_clk_list = uart_parent_clk;
-	grouper_loopback_uart_pdata.parent_clk_count =
+	kai_uart_pdata.parent_clk_list = uart_parent_clk;
+	kai_uart_pdata.parent_clk_count = ARRAY_SIZE(uart_parent_clk);
+	kai_loopback_uart_pdata.parent_clk_list = uart_parent_clk;
+	kai_loopback_uart_pdata.parent_clk_count =
 						ARRAY_SIZE(uart_parent_clk);
-	grouper_loopback_uart_pdata.is_loopback = true;
-	tegra_uarta_device.dev.platform_data = &grouper_uart_pdata;
-	tegra_uartb_device.dev.platform_data = &grouper_uart_pdata;
-	tegra_uartc_device.dev.platform_data = &grouper_uart_pdata;
-	tegra_uartd_device.dev.platform_data = &grouper_uart_pdata;
+	kai_loopback_uart_pdata.is_loopback = true;
+	tegra_uarta_device.dev.platform_data = &kai_uart_pdata;
+	tegra_uartb_device.dev.platform_data = &kai_uart_pdata;
+	tegra_uartc_device.dev.platform_data = &kai_uart_pdata;
+	tegra_uartd_device.dev.platform_data = &kai_uart_pdata;
 	/* UARTE is used for loopback test purpose */
-	tegra_uarte_device.dev.platform_data = &grouper_loopback_uart_pdata;
+	tegra_uarte_device.dev.platform_data = &kai_loopback_uart_pdata;
 
 	/* Register low speed only if it is selected */
-	if (!is_tegra_debug_uartport_hs()) {
+	if (!is_tegra_debug_uartport_hs())
 		uart_debug_init();
-	}
-	platform_add_devices(grouper_uart_devices,
-				ARRAY_SIZE(grouper_uart_devices));
+
+	platform_add_devices(kai_uart_devices,
+				ARRAY_SIZE(kai_uart_devices));
 }
 
 static struct platform_device tegra_camera = {
@@ -391,8 +392,7 @@ static struct platform_device tegra_camera = {
 	.id = -1,
 };
 
-static struct platform_device *grouper_spi_devices[] __initdata = {
-	&tegra_spi_device4,
+static struct platform_device *kai_spi_devices[] __initdata = {
 	&tegra_spi_device1,
 };
 
@@ -406,21 +406,14 @@ static struct spi_clk_parent spi_parent_clk[] = {
 #endif
 };
 
-static struct tegra_spi_platform_data grouper_spi4_pdata = {
-	.is_dma_based		= true,
-	.max_dma_buffer		= (16 * 1024),
-	.is_clkon_always	= false,
-	.max_rate		= 100000000,
-};
-
-static struct tegra_spi_platform_data grouper_spi1_pdata = {
+static struct tegra_spi_platform_data kai_spi1_pdata = {
 		.is_dma_based           = true,
 		.max_dma_buffer         = (128),
 		.is_clkon_always        = false,
 		.max_rate               = 100000000,
 };
 
-static void __init grouper_spi_init(void)
+static void __init kai_spi_init(void)
 {
 	int i;
 	struct clk *c;
@@ -435,15 +428,12 @@ static void __init grouper_spi_init(void)
 		spi_parent_clk[i].parent_clk = c;
 		spi_parent_clk[i].fixed_clk_rate = clk_get_rate(c);
 	}
-	grouper_spi4_pdata.parent_clk_list = spi_parent_clk;
-	grouper_spi4_pdata.parent_clk_count = ARRAY_SIZE(spi_parent_clk);
-	tegra_spi_device4.dev.platform_data = &grouper_spi4_pdata;
 
-	grouper_spi1_pdata.parent_clk_list = spi_parent_clk;
-	grouper_spi1_pdata.parent_clk_count = ARRAY_SIZE(spi_parent_clk);
-	tegra_spi_device1.dev.platform_data = &grouper_spi1_pdata;
-	platform_add_devices(grouper_spi_devices,
-				ARRAY_SIZE(grouper_spi_devices));
+	kai_spi1_pdata.parent_clk_list = spi_parent_clk;
+	kai_spi1_pdata.parent_clk_count = ARRAY_SIZE(spi_parent_clk);
+	tegra_spi_device1.dev.platform_data = &kai_spi1_pdata;
+	platform_add_devices(kai_spi_devices,
+				ARRAY_SIZE(kai_spi_devices));
 
 }
 
@@ -467,14 +457,27 @@ static struct platform_device tegra_rtc_device = {
 	.num_resources = ARRAY_SIZE(tegra_rtc_resources),
 };
 
-static struct tegra_asoc_platform_data grouper_audio_pdata = {
+static struct tegra_wakeup_monitor_platform_data
+					kai_tegra_wakeup_monitor_pdata = {
+	.wifi_wakeup_source	= 1,  /* kai's wifi wakeup source */
+};
+
+static struct platform_device kai_tegra_wakeup_monitor_device = {
+	.name = "tegra_wakeup_monitor",
+	.id   = -1,
+	.dev  = {
+		.platform_data = &kai_tegra_wakeup_monitor_pdata,
+	},
+};
+
+static struct tegra_asoc_platform_data kai_audio_pdata = {
 	.gpio_spkr_en		= TEGRA_GPIO_SPKR_EN,
 	.gpio_hp_det		= TEGRA_GPIO_HP_DET,
 	.gpio_hp_mute		= -1,
 	.gpio_int_mic_en	= TEGRA_GPIO_INT_MIC_EN,
 	.gpio_ext_mic_en	= TEGRA_GPIO_EXT_MIC_EN,
-	.gpio_ldo1_en           = TEGRA_GPIO_PX2,
-	.i2s_param[HIFI_CODEC]  = {
+	.gpio_ldo1_en		= TEGRA_GPIO_PX2,
+	.i2s_param[HIFI_CODEC]	= {
 		.audio_port_id	= 0,
 		.is_i2s_master	= 1,
 		.i2s_mode	= TEGRA_DAIFMT_I2S,
@@ -489,15 +492,15 @@ static struct tegra_asoc_platform_data grouper_audio_pdata = {
 	},
 };
 
-static struct platform_device grouper_audio_device = {
+static struct platform_device kai_audio_device = {
 	.name	= "tegra-snd-rt5640",
 	.id	= 0,
 	.dev	= {
-		.platform_data = &grouper_audio_pdata,
+		.platform_data = &kai_audio_pdata,
 	},
 };
 
-static struct gpio_led grouper_led_info[] = {
+static struct gpio_led kai_led_info[] = {
 	{
 		.name			= "statled",
 		.default_trigger	= "default-on",
@@ -508,20 +511,20 @@ static struct gpio_led grouper_led_info[] = {
 	},
 };
 
-static struct gpio_led_platform_data grouper_leds_pdata = {
-	.leds		= grouper_led_info,
-	.num_leds	= ARRAY_SIZE(grouper_led_info),
+static struct gpio_led_platform_data kai_leds_pdata = {
+	.leds		= kai_led_info,
+	.num_leds	= ARRAY_SIZE(kai_led_info),
 };
 
-static struct platform_device grouper_leds_gpio_device = {
+static struct platform_device kai_leds_gpio_device = {
 	.name	= "leds-gpio",
 	.id	= -1,
 	.dev	= {
-		.platform_data = &grouper_leds_pdata,
+		.platform_data = &kai_leds_pdata,
 	},
 };
 
-static struct platform_device *grouper_devices[] __initdata = {
+static struct platform_device *kai_devices[] __initdata = {
 	&tegra_pmu_device,
 	&tegra_rtc_device,
 	&tegra_udc_device,
@@ -544,8 +547,11 @@ static struct platform_device *grouper_devices[] __initdata = {
 	&spdif_dit_device,
 	&bluetooth_dit_device,
 	&tegra_pcm_device,
-	&grouper_audio_device,
-	&grouper_leds_gpio_device,
+#if defined(CONFIG_TEGRA_WAKEUP_MONITOR)
+	&kai_tegra_wakeup_monitor_device,
+#endif
+	&kai_audio_device,
+	&kai_leds_gpio_device,
 	&tegra_hda_device,
 #if defined(CONFIG_CRYPTO_DEV_TEGRA_AES)
 	&tegra_aes_device,
@@ -565,7 +571,8 @@ static __initdata struct tegra_clk_init_table touch_clk_init_table[] = {
 	{ NULL,         NULL,           0,              0},
 };
 
-struct rm_spi_ts_platform_data rm31080ts_grouper_007_data = {
+
+struct rm_spi_ts_platform_data rm31080ts_kai_007_data = {
 	.gpio_reset = 0,
 	.config = 0,
 	.platform_id = RM_PLATFORM_K007,
@@ -573,7 +580,7 @@ struct rm_spi_ts_platform_data rm31080ts_grouper_007_data = {
 	.name_of_clock_con = NULL,
 };
 
-struct rm_spi_ts_platform_data rm31080ts_grouper_107_data = {
+struct rm_spi_ts_platform_data rm31080ts_kai_107_data = {
 	.gpio_reset = 0,
 	.config = 0,
 	.platform_id = RM_PLATFORM_K107,
@@ -581,91 +588,91 @@ struct rm_spi_ts_platform_data rm31080ts_grouper_107_data = {
 	.name_of_clock_con = "extern3",
 };
 
-struct spi_board_info rm31080a_grouper_spi_board[1] = {
+struct spi_board_info rm31080a_kai_spi_board[1] = {
 	{
 	 .modalias = "rm_ts_spidev",
 	 .bus_num = 0,
 	 .chip_select = 0,
 	 .max_speed_hz = 13 * 1000 * 1000,
 	 .mode = SPI_MODE_0,
-	 .platform_data = &rm31080ts_grouper_007_data,
+	 .platform_data = &rm31080ts_kai_107_data,
 	 },
 };
 
-static int __init grouper_touch_init(void)
+static int __init kai_touch_init(void)
 {
 	int touch_id;
 
-	touch_id = gpio_request(GROUPER_TS_ID1, "touch-id1");
+	touch_id = gpio_request(KAI_TS_ID1, "touch-id1");
 	if (touch_id < 0) {
 		pr_err("%s: gpio_request failed %d\n",
 			__func__, touch_id);
 		return touch_id;
 	}
-	touch_id = gpio_direction_input(GROUPER_TS_ID1);
+	touch_id = gpio_direction_input(KAI_TS_ID1);
 	if (touch_id < 0) {
 		pr_err("%s: gpio_direction_input failed %d\n",
 			__func__, touch_id);
-		gpio_free(GROUPER_TS_ID1);
+		gpio_free(KAI_TS_ID1);
 	}
 
-	touch_id = gpio_request(GROUPER_TS_ID2, "touch-id2");
+	touch_id = gpio_request(KAI_TS_ID2, "touch-id2");
 	if (touch_id < 0) {
 		pr_err("%s: gpio_request failed %d\n",
 			__func__, touch_id);
 		return touch_id;
 	}
-	touch_id = gpio_direction_input(GROUPER_TS_ID2);
+	touch_id = gpio_direction_input(KAI_TS_ID2);
 	if (touch_id < 0) {
 		pr_err("%s: gpio_direction_input failed %d\n",
 			__func__, touch_id);
-		gpio_free(GROUPER_TS_ID2);
+		gpio_free(KAI_TS_ID2);
 	}
 
-	touch_id = gpio_get_value(GROUPER_TS_ID1) << 1;
-	touch_id |= gpio_get_value(GROUPER_TS_ID2);
+	touch_id = gpio_get_value(KAI_TS_ID1) << 1;
+	touch_id |= gpio_get_value(KAI_TS_ID2);
 
 	pr_info("touch-id %d\n", touch_id);
 
 	/* Disable TS_ID GPIO to save power */
-	gpio_direction_output(GROUPER_TS_ID1, 0);
-	tegra_pinmux_set_pullupdown(GROUPER_TS_ID1_PG, TEGRA_PUPD_NORMAL);
-	tegra_pinmux_set_tristate(GROUPER_TS_ID1_PG, TEGRA_TRI_TRISTATE);
-	gpio_direction_output(GROUPER_TS_ID2, 0);
-	tegra_pinmux_set_pullupdown(GROUPER_TS_ID2_PG, TEGRA_PUPD_NORMAL);
-	tegra_pinmux_set_tristate(GROUPER_TS_ID2_PG, TEGRA_TRI_TRISTATE);
+	gpio_direction_output(KAI_TS_ID1, 0);
+	tegra_pinmux_set_pullupdown(KAI_TS_ID1_PG, TEGRA_PUPD_NORMAL);
+	tegra_pinmux_set_tristate(KAI_TS_ID1_PG, TEGRA_TRI_TRISTATE);
+	gpio_direction_output(KAI_TS_ID2, 0);
+	tegra_pinmux_set_pullupdown(KAI_TS_ID2_PG, TEGRA_PUPD_NORMAL);
+	tegra_pinmux_set_tristate(KAI_TS_ID2_PG, TEGRA_TRI_TRISTATE);
 
 	switch (touch_id) {
 	case 0:
 		pr_info("Raydium PCB based touch init\n");
 		tegra_clk_init_from_table(spi_clk_init_table);
-		rm31080a_grouper_spi_board[0].platform_data =
-			&rm31080ts_grouper_007_data;
-		rm31080a_grouper_spi_board[0].irq =
+		rm31080a_kai_spi_board[0].platform_data =
+			&rm31080ts_kai_007_data;
+		rm31080a_kai_spi_board[0].irq =
 			gpio_to_irq(TOUCH_GPIO_IRQ_RAYDIUM_SPI);
 		touch_init_raydium(TOUCH_GPIO_IRQ_RAYDIUM_SPI,
 					TOUCH_GPIO_RST_RAYDIUM_SPI,
-					&rm31080ts_grouper_007_data,
-					&rm31080a_grouper_spi_board[0],
-					ARRAY_SIZE(rm31080a_grouper_spi_board));
+					&rm31080ts_kai_007_data,
+					&rm31080a_kai_spi_board[0],
+					ARRAY_SIZE(rm31080a_kai_spi_board));
 		break;
 	case 1:
 		pr_info("Raydium On-Board touch init\n");
 		tegra_clk_init_from_table(spi_clk_init_table);
 		tegra_clk_init_from_table(touch_clk_init_table);
-		rm31080a_grouper_spi_board[0].platform_data =
-			&rm31080ts_grouper_107_data;
-		rm31080a_grouper_spi_board[0].irq =
+		rm31080a_kai_spi_board[0].platform_data =
+			&rm31080ts_kai_107_data;
+		rm31080a_kai_spi_board[0].irq =
 			gpio_to_irq(TOUCH_GPIO_IRQ_RAYDIUM_SPI);
 		touch_init_raydium(TOUCH_GPIO_IRQ_RAYDIUM_SPI,
 					TOUCH_GPIO_RST_RAYDIUM_SPI,
-					&rm31080ts_grouper_107_data,
-					&rm31080a_grouper_spi_board[0],
-					ARRAY_SIZE(rm31080a_grouper_spi_board));
+					&rm31080ts_kai_107_data,
+					&rm31080a_kai_spi_board[0],
+					ARRAY_SIZE(rm31080a_kai_spi_board));
 		break;
 	case 3:
 		pr_info("Synaptics PCB based touch init\n");
-		touch_init_synaptics_grouper();
+		touch_init_synaptics_kai();
 		break;
 	default:
 		pr_err("touch_id error, no touch %d\n", touch_id);
@@ -680,9 +687,9 @@ static struct tegra_usb_platform_data tegra_udc_pdata = {
 	.op_mode = TEGRA_USB_OPMODE_DEVICE,
 	.u_data.dev = {
 		.vbus_pmu_irq = 0,
- 		.vbus_gpio = -1,
+		.vbus_gpio = -1,
 		.charging_supported = false,
- 		.remote_wakeup_supported = false,
+		.remote_wakeup_supported = false,
 	},
 	.u_cfg.utmi = {
 		.hssync_start_delay = 0,
@@ -721,6 +728,7 @@ static struct tegra_usb_platform_data tegra_ehci1_utmi_pdata = {
 	},
 };
 
+
 static struct tegra_usb_platform_data tegra_ehci2_utmi_pdata = {
 	.port_otg = false,
 	.has_hostpc = true,
@@ -731,6 +739,7 @@ static struct tegra_usb_platform_data tegra_ehci2_utmi_pdata = {
 		.hot_plug = true,
 		.remote_wakeup_supported = true,
 		.power_off_on_suspend = true,
+
 	},
 	.u_cfg.utmi = {
 		.hssync_start_delay = 0,
@@ -751,7 +760,7 @@ static struct tegra_usb_otg_data tegra_otg_pdata = {
 };
 
 #if CONFIG_USB_SUPPORT
-static void grouper_usb_init(void)
+static void kai_usb_init(void)
 {
 	tegra_otg_device.dev.platform_data = &tegra_otg_pdata;
 	platform_device_register(&tegra_otg_device);
@@ -760,7 +769,7 @@ static void grouper_usb_init(void)
 	tegra_udc_device.dev.platform_data = &tegra_udc_pdata;
 }
 
-static void grouper_modem_init(void)
+static void kai_modem_init(void)
 {
 	int ret;
 	int modem_id = tegra_get_modem_id();
@@ -769,6 +778,7 @@ static void grouper_modem_init(void)
 		tegra_ehci2_device.dev.platform_data = &tegra_ehci2_utmi_pdata;
 		platform_device_register(&tegra_ehci2_device);
 	}
+
 
 	ret = gpio_request(TEGRA_GPIO_W_DISABLE, "w_disable_gpio");
 	if (ret < 0)
@@ -783,7 +793,6 @@ static void grouper_modem_init(void)
 		}
 	}
 
-
 	ret = gpio_request(TEGRA_GPIO_MODEM_RSVD1, "Port_V_PIN_0");
 	if (ret < 0)
 		pr_err("%s: gpio_request failed for gpio %d\n",
@@ -796,6 +805,7 @@ static void grouper_modem_init(void)
 			gpio_free(TEGRA_GPIO_MODEM_RSVD1);
 		}
 	}
+
 
 	ret = gpio_request(TEGRA_GPIO_MODEM_RSVD2, "Port_H_PIN_7");
 	if (ret < 0)
@@ -813,58 +823,56 @@ static void grouper_modem_init(void)
 }
 
 #else
-static void grouper_usb_init(void) { }
-static void grouper_modem_init(void) { }
+static void kai_usb_init(void) { }
+static void kai_modem_init(void) { }
 #endif
 
-static void grouper_audio_init(void)
+static void kai_audio_init(void)
 {
 	struct board_info board_info;
 
 	tegra_get_board_info(&board_info);
 
 	if (board_info.fab == BOARD_FAB_A01) {
-		grouper_audio_pdata.codec_name = "rt5639.4-001c";
-		grouper_audio_pdata.codec_dai_name = "rt5639-aif1";
+		kai_audio_pdata.codec_name = "rt5639.4-001c";
+		kai_audio_pdata.codec_dai_name = "rt5639-aif1";
 	} else if (board_info.fab == BOARD_FAB_A00) {
-		grouper_audio_pdata.codec_name = "rt5640.4-001c";
-		grouper_audio_pdata.codec_dai_name = "rt5640-aif1";
+		kai_audio_pdata.codec_name = "rt5640.4-001c";
+		kai_audio_pdata.codec_dai_name = "rt5640-aif1";
 	}
 }
 
-static void __init tegra_grouper_init(void)
+static void __init tegra_kai_init(void)
 {
-	grouper_misc_init();
-	tegra_clk_init_from_table(grouper_clk_init_table);
+	tegra_clk_init_from_table(kai_clk_init_table);
 	tegra_enable_pinmux();
 	tegra_smmu_init();
-	tegra_soc_device_init("grouper");
-	grouper_pinmux_init();
-	grouper_misc_reset();
-	grouper_i2c_init();
-	grouper_spi_init();
-	grouper_usb_init();
+	tegra_soc_device_init("kai");
+	kai_pinmux_init();
+	kai_i2c_init();
+	kai_spi_init();
+	kai_usb_init();
 #ifdef CONFIG_TEGRA_EDP_LIMITS
-	grouper_edp_init();
+	kai_edp_init();
 #endif
-	grouper_uart_init();
-	grouper_audio_init();
-	platform_add_devices(grouper_devices, ARRAY_SIZE(grouper_devices));
+	kai_uart_init();
+	kai_audio_init();
+	platform_add_devices(kai_devices, ARRAY_SIZE(kai_devices));
 	tegra_ram_console_debug_init();
 	tegra_io_dpd_init();
-	grouper_sdhci_init();
-	grouper_regulator_init();
-	grouper_suspend_init();
-	grouper_touch_init();
-	//grouper_kbc_init();
-	grouper_modem_init();
-	grouper_keys_init();
-	grouper_panel_init();
-	grouper_bt_st();
-	grouper_sensors_init();
-	grouper_pins_state_init();
-	grouper_emc_init();
-//	tegra_release_bootloader_fb();
+	kai_sdhci_init();
+	kai_regulator_init();
+	kai_suspend_init();
+	kai_touch_init();
+	kai_keys_init();
+	kai_panel_init();
+	kai_tegra_setup_tibluesleep();
+	kai_bt_st();
+	kai_sensors_init();
+	kai_pins_state_init();
+	kai_emc_init();
+	tegra_release_bootloader_fb();
+	kai_modem_init();
 #ifdef CONFIG_TEGRA_WDT_RECOVERY
 	tegra_wdt_recovery_init();
 #endif
@@ -872,14 +880,14 @@ static void __init tegra_grouper_init(void)
 	tegra_register_fuse();
 }
 
-static void __init grouper_ramconsole_reserve(unsigned long size)
+static void __init kai_ramconsole_reserve(unsigned long size)
 {
 	tegra_ram_console_debug_reserve(SZ_1M);
 }
 
-static void __init tegra_grouper_dt_init(void)
+static void __init tegra_kai_dt_init(void)
 {
-	tegra_grouper_init();
+	tegra_kai_init();
 
 #ifdef CONFIG_USE_OF
 	of_platform_populate(NULL,
@@ -887,7 +895,7 @@ static void __init tegra_grouper_dt_init(void)
 #endif
 }
 
-static void __init tegra_grouper_reserve(void)
+static void __init tegra_kai_reserve(void)
 {
 #if defined(CONFIG_NVMAP_CONVERT_CARVEOUT_TO_IOVMM)
 	/* support 1920X1200 with 24bpp */
@@ -895,24 +903,24 @@ static void __init tegra_grouper_reserve(void)
 #else
 	tegra_reserve(SZ_128M, SZ_8M, SZ_8M);
 #endif
-	grouper_ramconsole_reserve(SZ_1M);
+	kai_ramconsole_reserve(SZ_1M);
 }
 
-static const char * const grouper_dt_board_compat[] = {
-	"nvidia,grouper",
+static const char * const kai_dt_board_compat[] = {
+	"nvidia,kai",
 	NULL
 };
 
-MACHINE_START(GROUPER, "grouper")
+MACHINE_START(KAI, "kai")
 	.atag_offset	= 0x100,
-	.soc            = &tegra_soc_desc,
+	.soc		= &tegra_soc_desc,
 	.map_io		= tegra_map_common_io,
-	.reserve	= tegra_grouper_reserve,
+	.reserve	= tegra_kai_reserve,
 	.init_early	= tegra30_init_early,
 	.init_irq	= tegra_init_irq,
 	.handle_irq	= gic_handle_irq,
 	.timer		= &tegra_timer,
-	.init_machine	= tegra_grouper_dt_init,
+	.init_machine	= tegra_kai_dt_init,
 	.restart	= tegra_assert_system_reset,
-	.dt_compat      = grouper_dt_board_compat,
+	.dt_compat	= kai_dt_board_compat,
 MACHINE_END

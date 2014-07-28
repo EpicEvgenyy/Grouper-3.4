@@ -1,7 +1,7 @@
 /*
- * arch/arm/mach-tegra/board-grouper-panel.c
+ * arch/arm/mach-tegra/board-kai-panel.c
  *
- * Copyright (c) 2012, NVIDIA Corporation.
+ * Copyright (c) 2012-2013, NVIDIA Corporation.
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2 as
@@ -34,109 +34,110 @@
 #include <mach/gpio-tegra.h>
 
 #include "board.h"
-#include "board-grouper.h"
+#include "board-kai.h"
 #include "devices.h"
 #include "gpio-names.h"
 #include "tegra3_host1x_devices.h"
 
-/* grouper default display board pins */
-#define grouper_lvds_avdd_en		TEGRA_GPIO_PH6
-#define grouper_lvds_stdby			TEGRA_GPIO_PG5
-#define grouper_lvds_rst			TEGRA_GPIO_PG7
-#define grouper_lvds_shutdown		TEGRA_GPIO_PN6
-#define grouper_lvds_rs			TEGRA_GPIO_PV6
-#define grouper_lvds_lr			TEGRA_GPIO_PG1
+/* kai default display board pins */
+#define kai_lvds_avdd_en		TEGRA_GPIO_PH6
+#define kai_lvds_stdby			TEGRA_GPIO_PG5
+#define kai_lvds_rst			TEGRA_GPIO_PG7
+#define kai_lvds_shutdown		TEGRA_GPIO_PN6
+#define kai_lvds_rs			TEGRA_GPIO_PV6
+#define kai_lvds_lr			TEGRA_GPIO_PG1
 
-/* grouper A00 display board pins */
-#define grouper_lvds_rs_a00		TEGRA_GPIO_PH1
+/* kai A00 display board pins */
+#define kai_lvds_rs_a00		TEGRA_GPIO_PH1
 
 /* common pins( backlight ) for all display boards */
-#define grouper_bl_enb			TEGRA_GPIO_PH3
-#define grouper_bl_pwm			TEGRA_GPIO_PH0
-#define grouper_hdmi_hpd			TEGRA_GPIO_PN7
+#define kai_bl_enb			TEGRA_GPIO_PH3
+#define kai_bl_pwm			TEGRA_GPIO_PH0
+#define kai_hdmi_hpd			TEGRA_GPIO_PN7
 
 #ifdef CONFIG_TEGRA_DC
-static struct regulator *grouper_hdmi_reg;
-static struct regulator *grouper_hdmi_pll;
-static struct regulator *grouper_hdmi_vddio;
+static struct regulator *kai_hdmi_reg;
+static struct regulator *kai_hdmi_pll;
+static struct regulator *kai_hdmi_vddio;
 #endif
 
 static atomic_t sd_brightness = ATOMIC_INIT(255);
 
-static struct regulator *grouper_lvds_reg;
-static struct regulator *grouper_lvds_vdd_panel;
+static struct regulator *kai_lvds_reg;
+static struct regulator *kai_lvds_vdd_panel;
 
-static tegra_dc_bl_output grouper_bl_output_measured = {
-	0, 13, 13, 13, 13, 13, 13, 13,
-	13, 13, 13, 13, 13, 13, 14, 15,
-	16, 17, 18, 19, 20, 21, 22, 23,
-	24, 25, 26, 27, 28, 29, 30, 31,
-	32, 33, 34, 35, 36, 37, 38, 39,
-	40, 41, 42, 43, 44, 45, 46, 47,
-	48, 49, 49, 50, 51, 52, 53, 54,
-	55, 56, 57, 58, 59, 60, 61, 62,
-	63, 64, 65, 66, 67, 68, 69, 70,
-	70, 72, 73, 74, 75, 76, 77, 78,
-	79, 80, 81, 82, 83, 84, 85, 86,
-	87, 88, 89, 90, 91, 92, 93, 94,
-	95, 96, 97, 98, 99, 100, 101, 102,
-	103, 104, 105, 106, 107, 108, 110, 111,
-	112, 113, 114, 115, 116, 117, 118, 119,
-	120, 121, 122, 123, 124, 124, 125, 126,
-	127, 128, 129, 130, 131, 132, 133, 133,
+static tegra_dc_bl_output kai_bl_output_measured = {
+	0, 1, 2, 3, 4, 5, 6, 7,
+	7, 8, 9, 10, 11, 12, 13, 14,
+	15, 16, 17, 18, 19, 20, 20, 21,
+	22, 23, 24, 25, 26, 27, 28, 29,
+	30, 31, 32, 32, 34, 34, 36, 36,
+	38, 39, 40, 40, 41, 42, 42, 43,
+	44, 44, 45, 46, 46, 47, 48, 48,
+	49, 50, 50, 51, 52, 53, 54, 54,
+	55, 56, 57, 58, 58, 59, 60, 61,
+	62, 63, 64, 65, 66, 67, 68, 69,
+	70, 71, 72, 72, 73, 74, 75, 76,
+	76, 77, 78, 79, 80, 81, 82, 83,
+	85, 86, 87, 89, 90, 91, 92, 92,
+	93, 94, 95, 96, 96, 97, 98, 99,
+	100, 100, 101, 102, 103, 104, 104, 105,
+	106, 107, 108, 108, 109, 110, 112, 114,
+	116, 118, 120, 121, 122, 123, 124, 125,
+	126, 127, 128, 129, 130, 131, 132, 133,
 	134, 135, 136, 137, 138, 139, 140, 141,
-	142, 143, 144, 145, 146, 147, 148, 148,
-	149, 150, 151, 152, 153, 154, 155, 156,
-	157, 158, 159, 160, 161, 162, 163, 164,
-	165, 166, 167, 168, 169, 170, 171, 172,
-	173, 174, 175, 176, 177, 179, 180, 181,
-	182, 184, 185, 186, 187, 188, 189, 190,
-	191, 192, 193, 194, 195, 196, 197, 198,
-	199, 200, 201, 202, 203, 204, 205, 206,
-	207, 208, 209, 211, 212, 213, 214, 215,
-	216, 217, 218, 219, 220, 221, 222, 223,
-	224, 225, 226, 227, 228, 229, 230, 231,
-	232, 233, 234, 235, 236, 237, 238, 239,
-	240, 241, 242, 243, 244, 245, 246, 247,
-	248, 249, 250, 251, 252, 253, 254, 255
+	142, 143, 144, 145, 146, 147, 148, 149,
+	150, 151, 151, 152, 153, 153, 154, 155,
+	155, 156, 157, 157, 158, 159, 159, 160,
+	162, 164, 166, 168, 170, 172, 174, 176,
+	178, 180, 181, 181, 182, 183, 183, 184,
+	185, 185, 186, 187, 187, 188, 189, 189,
+	190, 191, 192, 193, 194, 195, 196, 197,
+	198, 199, 200, 201, 201, 202, 203, 203,
+	204, 205, 205, 206, 207, 207, 208, 209,
+	209, 210, 211, 211, 212, 212, 213, 213,
+	214, 215, 215, 216, 216, 217, 217, 218,
+	219, 219, 220, 222, 226, 230, 232, 234,
+	236, 238, 240, 244, 248, 251, 253, 255
 };
 
 static p_tegra_dc_bl_output bl_output;
 
-static int grouper_backlight_init(struct device *dev)
+static int kai_backlight_init(struct device *dev)
 {
-	int ret = 0;
+	int ret;
 
-	bl_output = grouper_bl_output_measured;
+	bl_output = kai_bl_output_measured;
 
-	if (WARN_ON(ARRAY_SIZE(grouper_bl_output_measured) != 256))
+	if (WARN_ON(ARRAY_SIZE(kai_bl_output_measured) != 256))
 		pr_err("bl_output array does not have 256 elements\n");
 
-	ret = gpio_request(grouper_bl_enb, "backlight_enb");
+	ret = gpio_request(kai_bl_enb, "backlight_enb");
 	if (ret < 0)
 		return ret;
 
-	ret = gpio_direction_output(grouper_bl_enb, 1);
+	ret = gpio_direction_output(kai_bl_enb, 1);
 	if (ret < 0)
-		gpio_free(grouper_bl_enb);
+		gpio_free(kai_bl_enb);
+
 	return ret;
 };
 
-static void grouper_backlight_exit(struct device *dev)
+static void kai_backlight_exit(struct device *dev)
 {
 	/* int ret; */
-	/*ret = gpio_request(grouper_bl_enb, "backlight_enb");*/
-	gpio_set_value(grouper_bl_enb, 0);
-	gpio_free(grouper_bl_enb);
+	/*ret = gpio_request(kai_bl_enb, "backlight_enb");*/
+	gpio_set_value(kai_bl_enb, 0);
+	gpio_free(kai_bl_enb);
 	return;
 }
 
-static int grouper_backlight_notify(struct device *unused, int brightness)
+static int kai_backlight_notify(struct device *unused, int brightness)
 {
 	int cur_sd_brightness = atomic_read(&sd_brightness);
 
 	/* Set the backlight GPIO pin mode to 'backlight_enable' */
-	gpio_set_value(grouper_bl_enb, !!brightness);
+	gpio_set_value(kai_bl_enb, !!brightness);
 
 	/* SD brightness is a percentage, 8-bit value. */
 	brightness = (brightness * cur_sd_brightness) / 255;
@@ -150,155 +151,155 @@ static int grouper_backlight_notify(struct device *unused, int brightness)
 	return brightness;
 }
 
-static int grouper_disp1_check_fb(struct device *dev, struct fb_info *info);
+static int kai_disp1_check_fb(struct device *dev, struct fb_info *info);
 
-static struct platform_pwm_backlight_data grouper_backlight_data = {
+static struct platform_pwm_backlight_data kai_backlight_data = {
 	.pwm_id		= 0,
 	.max_brightness	= 255,
 	.dft_brightness	= 224,
-	.pwm_period_ns	= 50000,
-	.init		= grouper_backlight_init,
-	.exit		= grouper_backlight_exit,
-	.notify		= grouper_backlight_notify,
+	.pwm_period_ns	= 100000,
+	.init		= kai_backlight_init,
+	.exit		= kai_backlight_exit,
+	.notify		= kai_backlight_notify,
 	/* Only toggle backlight on fb blank notifications for disp1 */
-	.check_fb	= grouper_disp1_check_fb,
+	.check_fb	= kai_disp1_check_fb,
 };
 
-static struct platform_device grouper_backlight_device = {
+static struct platform_device kai_backlight_device = {
 	.name	= "pwm-backlight",
 	.id	= -1,
 	.dev	= {
-		.platform_data = &grouper_backlight_data,
+		.platform_data = &kai_backlight_data,
 	},
 };
 
-static int grouper_panel_postpoweron(void)
+static int kai_panel_postpoweron(void)
 {
-	if (grouper_lvds_reg == NULL) {
-		grouper_lvds_reg = regulator_get(NULL, "vdd_lvds");
-		if (WARN_ON(IS_ERR(grouper_lvds_reg)))
+	if (kai_lvds_reg == NULL) {
+		kai_lvds_reg = regulator_get(NULL, "vdd_lvds");
+		if (WARN_ON(IS_ERR(kai_lvds_reg)))
 			pr_err("%s: couldn't get regulator vdd_lvds: %ld\n",
-			       __func__, PTR_ERR(grouper_lvds_reg));
+			       __func__, PTR_ERR(kai_lvds_reg));
 		else
-			regulator_enable(grouper_lvds_reg);
+			regulator_enable(kai_lvds_reg);
 	}
 
 	mdelay(5);
 
-	gpio_set_value(grouper_lvds_avdd_en, 1);
+	gpio_set_value(kai_lvds_avdd_en, 1);
 	mdelay(5);
 
-	gpio_set_value(grouper_lvds_stdby, 1);
-	gpio_set_value(grouper_lvds_rst, 1);
-	gpio_set_value(grouper_lvds_shutdown, 1);
-	gpio_set_value(grouper_lvds_lr, 1);
+	gpio_set_value(kai_lvds_stdby, 1);
+	gpio_set_value(kai_lvds_rst, 1);
+	gpio_set_value(kai_lvds_shutdown, 1);
+	gpio_set_value(kai_lvds_lr, 1);
 
 	mdelay(10);
 
 	return 0;
 }
 
-static int grouper_panel_enable(struct device *dev)
+static int kai_panel_enable(struct device *dev)
 {
-	if (grouper_lvds_vdd_panel == NULL) {
-		grouper_lvds_vdd_panel = regulator_get(dev, "vdd_lcd_panel");
-		if (WARN_ON(IS_ERR(grouper_lvds_vdd_panel)))
+	if (kai_lvds_vdd_panel == NULL) {
+		kai_lvds_vdd_panel = regulator_get(dev, "vdd_lcd_panel");
+		if (WARN_ON(IS_ERR(kai_lvds_vdd_panel)))
 			pr_err("%s: couldn't get regulator vdd_lcd_panel: %ld\n",
-			       __func__, PTR_ERR(grouper_lvds_vdd_panel));
+			       __func__, PTR_ERR(kai_lvds_vdd_panel));
 		else
-			regulator_enable(grouper_lvds_vdd_panel);
+			regulator_enable(kai_lvds_vdd_panel);
 	}
 
 	return 0;
 }
 
-static int grouper_panel_disable(void)
+static int kai_panel_disable(void)
 {
-	regulator_disable(grouper_lvds_vdd_panel);
-	regulator_put(grouper_lvds_vdd_panel);
-	grouper_lvds_vdd_panel = NULL;
+	regulator_disable(kai_lvds_vdd_panel);
+	regulator_put(kai_lvds_vdd_panel);
+	kai_lvds_vdd_panel = NULL;
 
 	return 0;
 }
 
-static int grouper_panel_prepoweroff(void)
+static int kai_panel_prepoweroff(void)
 {
-	gpio_set_value(grouper_lvds_lr, 0);
-	gpio_set_value(grouper_lvds_shutdown, 0);
-	gpio_set_value(grouper_lvds_rst, 0);
-	gpio_set_value(grouper_lvds_stdby, 0);
+	gpio_set_value(kai_lvds_lr, 0);
+	gpio_set_value(kai_lvds_shutdown, 0);
+	gpio_set_value(kai_lvds_rst, 0);
+	gpio_set_value(kai_lvds_stdby, 0);
 	mdelay(5);
 
-	gpio_set_value(grouper_lvds_avdd_en, 0);
+	gpio_set_value(kai_lvds_avdd_en, 0);
 	mdelay(5);
 
-	regulator_disable(grouper_lvds_reg);
-	regulator_put(grouper_lvds_reg);
-	grouper_lvds_reg = NULL;
+	regulator_disable(kai_lvds_reg);
+	regulator_put(kai_lvds_reg);
+	kai_lvds_reg = NULL;
 
 	return 0;
 }
 
 #ifdef CONFIG_TEGRA_DC
-static int grouper_hdmi_vddio_enable(struct device *dev)
+static int kai_hdmi_vddio_enable(struct device *dev)
 {
 	int ret;
-	if (!grouper_hdmi_vddio) {
-		grouper_hdmi_vddio = regulator_get(dev, "vdd_hdmi_con");
-		if (IS_ERR_OR_NULL(grouper_hdmi_vddio)) {
-			ret = PTR_ERR(grouper_hdmi_vddio);
+	if (!kai_hdmi_vddio) {
+		kai_hdmi_vddio = regulator_get(dev, "vdd_hdmi_con");
+		if (IS_ERR_OR_NULL(kai_hdmi_vddio)) {
+			ret = PTR_ERR(kai_hdmi_vddio);
 			pr_err("hdmi: couldn't get regulator vdd_hdmi_con\n");
-			grouper_hdmi_vddio = NULL;
+			kai_hdmi_vddio = NULL;
 			return ret;
 		}
 	}
-	ret = regulator_enable(grouper_hdmi_vddio);
+	ret = regulator_enable(kai_hdmi_vddio);
 	if (ret < 0) {
 		pr_err("hdmi: couldn't enable regulator vdd_hdmi_con\n");
-		regulator_put(grouper_hdmi_vddio);
-		grouper_hdmi_vddio = NULL;
+		regulator_put(kai_hdmi_vddio);
+		kai_hdmi_vddio = NULL;
 		return ret;
 	}
 	return ret;
 }
 
-static int grouper_hdmi_vddio_disable(void)
+static int kai_hdmi_vddio_disable(void)
 {
-	if (grouper_hdmi_vddio) {
-		regulator_disable(grouper_hdmi_vddio);
-		regulator_put(grouper_hdmi_vddio);
-		grouper_hdmi_vddio = NULL;
+	if (kai_hdmi_vddio) {
+		regulator_disable(kai_hdmi_vddio);
+		regulator_put(kai_hdmi_vddio);
+		kai_hdmi_vddio = NULL;
 	}
 	return 0;
 }
 
-static int grouper_hdmi_enable(struct device *dev)
+static int kai_hdmi_enable(struct device *dev)
 {
 	int ret;
-	if (!grouper_hdmi_reg) {
-		grouper_hdmi_reg = regulator_get(dev, "avdd_hdmi");
-		if (IS_ERR_OR_NULL(grouper_hdmi_reg)) {
+	if (!kai_hdmi_reg) {
+		kai_hdmi_reg = regulator_get(dev, "avdd_hdmi");
+		if (IS_ERR_OR_NULL(kai_hdmi_reg)) {
 			pr_err("hdmi: couldn't get regulator avdd_hdmi\n");
-			grouper_hdmi_reg = NULL;
-			return PTR_ERR(grouper_hdmi_reg);
+			kai_hdmi_reg = NULL;
+			return PTR_ERR(kai_hdmi_reg);
 		}
 	}
-	ret = regulator_enable(grouper_hdmi_reg);
+	ret = regulator_enable(kai_hdmi_reg);
 	if (ret < 0) {
 		pr_err("hdmi: couldn't enable regulator avdd_hdmi\n");
 		return ret;
 	}
-	if (!grouper_hdmi_pll) {
-		grouper_hdmi_pll = regulator_get(dev, "avdd_hdmi_pll");
-		if (IS_ERR_OR_NULL(grouper_hdmi_pll)) {
+	if (!kai_hdmi_pll) {
+		kai_hdmi_pll = regulator_get(dev, "avdd_hdmi_pll");
+		if (IS_ERR_OR_NULL(kai_hdmi_pll)) {
 			pr_err("hdmi: couldn't get regulator avdd_hdmi_pll\n");
-			grouper_hdmi_pll = NULL;
-			regulator_put(grouper_hdmi_reg);
-			grouper_hdmi_reg = NULL;
-			return PTR_ERR(grouper_hdmi_pll);
+			kai_hdmi_pll = NULL;
+			regulator_put(kai_hdmi_reg);
+			kai_hdmi_reg = NULL;
+			return PTR_ERR(kai_hdmi_pll);
 		}
 	}
-	ret = regulator_enable(grouper_hdmi_pll);
+	ret = regulator_enable(kai_hdmi_pll);
 	if (ret < 0) {
 		pr_err("hdmi: couldn't enable regulator avdd_hdmi_pll\n");
 		return ret;
@@ -306,19 +307,19 @@ static int grouper_hdmi_enable(struct device *dev)
 	return 0;
 }
 
-static int grouper_hdmi_disable(void)
+static int kai_hdmi_disable(void)
 {
-	regulator_disable(grouper_hdmi_reg);
-	regulator_put(grouper_hdmi_reg);
-	grouper_hdmi_reg = NULL;
+	regulator_disable(kai_hdmi_reg);
+	regulator_put(kai_hdmi_reg);
+	kai_hdmi_reg = NULL;
 
-	regulator_disable(grouper_hdmi_pll);
-	regulator_put(grouper_hdmi_pll);
-	grouper_hdmi_pll = NULL;
+	regulator_disable(kai_hdmi_pll);
+	regulator_put(kai_hdmi_pll);
+	kai_hdmi_pll = NULL;
 	return 0;
 }
 
-static struct resource grouper_disp1_resources[] = {
+static struct resource kai_disp1_resources[] = {
 	{
 		.name	= "irq",
 		.start	= INT_DISPLAY_GENERAL,
@@ -333,13 +334,13 @@ static struct resource grouper_disp1_resources[] = {
 	},
 	{
 		.name	= "fbmem",
-		.start	= 0,	/* Filled in by grouper_panel_init() */
-		.end	= 0,	/* Filled in by grouper_panel_init() */
+		.start	= 0,	/* Filled in by kai_panel_init() */
+		.end	= 0,	/* Filled in by kai_panel_init() */
 		.flags	= IORESOURCE_MEM,
 	},
 };
 
-static struct resource grouper_disp2_resources[] = {
+static struct resource kai_disp2_resources[] = {
 	{
 		.name	= "irq",
 		.start	= INT_DISPLAY_B_GENERAL,
@@ -367,31 +368,30 @@ static struct resource grouper_disp2_resources[] = {
 };
 #endif
 
-static struct tegra_dc_mode grouper_panel_modes[] = {
+static struct tegra_dc_mode kai_panel_modes[] = {
 	{
-		/* 1280x800@60Hz */
-		.pclk = 68000000,
-		.h_ref_to_sync = 1,
+		/* 1024x600@60Hz */
+		.pclk = 51206000,
+		.h_ref_to_sync = 11,
 		.v_ref_to_sync = 1,
-		.h_sync_width = 24,
-		.v_sync_width = 1,
-		.h_back_porch = 32,
-		.v_back_porch = 2,
-		.h_active = 800,
-		.v_active = 1280,
-		.h_front_porch = 24,
-		.v_front_porch = 5,
+		.h_sync_width = 10,
+		.v_sync_width = 5,
+		.h_back_porch = 10,
+		.v_back_porch = 15,
+		.h_active = 1024,
+		.v_active = 600,
+		.h_front_porch = 300,
+		.v_front_porch = 15,
 	},
 };
 
-static struct tegra_dc_sd_settings grouper_sd_settings = {
+static struct tegra_dc_sd_settings kai_sd_settings = {
 	.enable = 1, /* enabled by default. */
 	.use_auto_pwm = false,
 	.hw_update_delay = 0,
 	.bin_width = -1,
 	.aggressiveness = 1,
 	.phase_in_adjustments = true,
-	.panel_min_brightness = 13,
 	.use_vid_luma = false,
 	/* Default video coefficients */
 	.coeff = {5, 9, 2},
@@ -478,53 +478,53 @@ static struct tegra_dc_sd_settings grouper_sd_settings = {
 };
 
 #ifdef CONFIG_TEGRA_DC
-static struct tegra_fb_data grouper_fb_data = {
+static struct tegra_fb_data kai_fb_data = {
 	.win		= 0,
-	.xres		= 800,
-	.yres		= 1280,
-	.bits_per_pixel	= 32,
-//	.flags		= TEGRA_FB_FLIP_ON_PROBE,
-};
-
-static struct tegra_fb_data grouper_hdmi_fb_data = {
-	.win		= 0,
-	.xres		= 800,
-	.yres		= 1280,
+	.xres		= 1024,
+	.yres		= 600,
 	.bits_per_pixel	= 32,
 	.flags		= TEGRA_FB_FLIP_ON_PROBE,
 };
 
-static struct tegra_dc_out grouper_disp2_out = {
+static struct tegra_fb_data kai_hdmi_fb_data = {
+	.win		= 0,
+	.xres		= 1024,
+	.yres		= 600,
+	.bits_per_pixel	= 32,
+	.flags		= TEGRA_FB_FLIP_ON_PROBE,
+};
+
+static struct tegra_dc_out kai_disp2_out = {
 	.type		= TEGRA_DC_OUT_HDMI,
 	.flags		= TEGRA_DC_OUT_HOTPLUG_HIGH,
 
 	.dcc_bus	= 3,
-	.hotplug_gpio	= grouper_hdmi_hpd,
+	.hotplug_gpio	= kai_hdmi_hpd,
 
 	.max_pixclock	= KHZ2PICOS(148500),
 
 	.align		= TEGRA_DC_ALIGN_MSB,
 	.order		= TEGRA_DC_ORDER_RED_BLUE,
 
-	.enable		= grouper_hdmi_enable,
-	.disable	= grouper_hdmi_disable,
+	.enable		= kai_hdmi_enable,
+	.disable	= kai_hdmi_disable,
 
-	.postsuspend	= grouper_hdmi_vddio_disable,
-	.hotplug_init	= grouper_hdmi_vddio_enable,
+	.postsuspend	= kai_hdmi_vddio_disable,
+	.hotplug_init	= kai_hdmi_vddio_enable,
 };
 
-static struct tegra_dc_platform_data grouper_disp2_pdata = {
+static struct tegra_dc_platform_data kai_disp2_pdata = {
 	.flags		= 0,
-	.default_out	= &grouper_disp2_out,
-	.fb		= &grouper_hdmi_fb_data,
+	.default_out	= &kai_disp2_out,
+	.fb		= &kai_hdmi_fb_data,
 	.emc_clk_rate	= 300000000,
 };
 #endif
 
-static struct tegra_dc_out grouper_disp1_out = {
+static struct tegra_dc_out kai_disp1_out = {
 	.align		= TEGRA_DC_ALIGN_MSB,
 	.order		= TEGRA_DC_ORDER_RED_BLUE,
-	.sd_settings	= &grouper_sd_settings,
+	.sd_settings	= &kai_sd_settings,
 	.parent_clk	= "pll_p",
 	.parent_clk_backup = "pll_d2_out0",
 
@@ -532,92 +532,89 @@ static struct tegra_dc_out grouper_disp1_out = {
 	.depth		= 18,
 	.dither		= TEGRA_DC_ORDERED_DITHER,
 
-	.modes		= grouper_panel_modes,
-	.n_modes	= ARRAY_SIZE(grouper_panel_modes),
+	.modes		= kai_panel_modes,
+	.n_modes	= ARRAY_SIZE(kai_panel_modes),
 
-	.enable		= grouper_panel_enable,
-	.postpoweron    = grouper_panel_postpoweron,
-	.prepoweroff    = grouper_panel_prepoweroff,
-	.disable	= grouper_panel_disable,
-
-	.height		= 162,
-	.width		= 104,
+	.enable		= kai_panel_enable,
+	.postpoweron	= kai_panel_postpoweron,
+	.prepoweroff	= kai_panel_prepoweroff,
+	.disable	= kai_panel_disable,
 };
 
 #ifdef CONFIG_TEGRA_DC
-static struct tegra_dc_platform_data grouper_disp1_pdata = {
+static struct tegra_dc_platform_data kai_disp1_pdata = {
 	.flags		= TEGRA_DC_FLAG_ENABLED,
-	.default_out	= &grouper_disp1_out,
+	.default_out	= &kai_disp1_out,
 	.emc_clk_rate	= 300000000,
-	.fb		= &grouper_fb_data,
+	.fb		= &kai_fb_data,
 };
 
-static struct platform_device grouper_disp1_device = {
+static struct platform_device kai_disp1_device = {
 	.name		= "tegradc",
 	.id		= 0,
-	.resource	= grouper_disp1_resources,
-	.num_resources	= ARRAY_SIZE(grouper_disp1_resources),
+	.resource	= kai_disp1_resources,
+	.num_resources	= ARRAY_SIZE(kai_disp1_resources),
 	.dev = {
-		.platform_data = &grouper_disp1_pdata,
+		.platform_data = &kai_disp1_pdata,
 	},
 };
 
-static int grouper_disp1_check_fb(struct device *dev, struct fb_info *info)
+static int kai_disp1_check_fb(struct device *dev, struct fb_info *info)
 {
-	return info->device == &grouper_disp1_device.dev;
+	return info->device == &kai_disp1_device.dev;
 }
 
-static struct platform_device grouper_disp2_device = {
+static struct platform_device kai_disp2_device = {
 	.name		= "tegradc",
 	.id		= 1,
-	.resource	= grouper_disp2_resources,
-	.num_resources	= ARRAY_SIZE(grouper_disp2_resources),
+	.resource	= kai_disp2_resources,
+	.num_resources	= ARRAY_SIZE(kai_disp2_resources),
 	.dev = {
-		.platform_data = &grouper_disp2_pdata,
+		.platform_data = &kai_disp2_pdata,
 	},
 };
 #else
-static int grouper_disp1_check_fb(struct device *dev, struct fb_info *info)
+static int kai_disp1_check_fb(struct device *dev, struct fb_info *info)
 {
 	return 0;
 }
 #endif
 
 #if defined(CONFIG_TEGRA_NVMAP)
-static struct nvmap_platform_carveout grouper_carveouts[] = {
+static struct nvmap_platform_carveout kai_carveouts[] = {
 	[0] = NVMAP_HEAP_CARVEOUT_IRAM_INIT,
 	[1] = {
 		.name		= "generic-0",
 		.usage_mask	= NVMAP_HEAP_CARVEOUT_GENERIC,
-		.base		= 0,	/* Filled in by grouper_panel_init() */
-		.size		= 0,	/* Filled in by grouper_panel_init() */
+		.base		= 0,	/* Filled in by kai_panel_init() */
+		.size		= 0,	/* Filled in by kai_panel_init() */
 		.buddy_size	= SZ_32K,
 	},
 };
 
-static struct nvmap_platform_data grouper_nvmap_data = {
-	.carveouts	= grouper_carveouts,
-	.nr_carveouts	= ARRAY_SIZE(grouper_carveouts),
+static struct nvmap_platform_data kai_nvmap_data = {
+	.carveouts	= kai_carveouts,
+	.nr_carveouts	= ARRAY_SIZE(kai_carveouts),
 };
 
-static struct platform_device grouper_nvmap_device = {
+static struct platform_device kai_nvmap_device = {
 	.name	= "tegra-nvmap",
 	.id	= -1,
 	.dev	= {
-		.platform_data = &grouper_nvmap_data,
+		.platform_data = &kai_nvmap_data,
 	},
 };
 #endif
 
-static struct platform_device *grouper_gfx_devices[] __initdata = {
+static struct platform_device *kai_gfx_devices[] __initdata = {
 #if defined(CONFIG_TEGRA_NVMAP)
-	&grouper_nvmap_device,
+	&kai_nvmap_device,
 #endif
 	&tegra_pwfm0_device,
-	&grouper_backlight_device,
+	&kai_backlight_device,
 };
 
-int __init grouper_panel_init(void)
+int __init kai_panel_init(void)
 {
 	int err;
 	struct resource __maybe_unused *res;
@@ -627,122 +624,122 @@ int __init grouper_panel_init(void)
 	tegra_get_board_info(&board_info);
 
 #if defined(CONFIG_TEGRA_NVMAP)
-	grouper_carveouts[1].base = tegra_carveout_start;
-	grouper_carveouts[1].size = tegra_carveout_size;
+	kai_carveouts[1].base = tegra_carveout_start;
+	kai_carveouts[1].size = tegra_carveout_size;
 #endif
-	err = gpio_request(grouper_lvds_avdd_en, "lvds_avdd_en");
+	err = gpio_request(kai_lvds_avdd_en, "lvds_avdd_en");
 	if (err < 0) {
 		pr_err("%s: gpio_request failed %d\n",
 			__func__, err);
 		return err;
 	}
-	err = gpio_direction_output(grouper_lvds_avdd_en, 1);
+	err = gpio_direction_output(kai_lvds_avdd_en, 1);
 	if (err < 0) {
 		pr_err("%s: gpio_direction_output failed %d\n",
 			__func__, err);
-			gpio_free(grouper_lvds_avdd_en);
+			gpio_free(kai_lvds_avdd_en);
 		return err;
 	}
-	err = gpio_request(grouper_lvds_stdby, "lvds_stdby");
+	err = gpio_request(kai_lvds_stdby, "lvds_stdby");
 	if (err < 0) {
 		pr_err("%s: gpio_request failed %d\n",
 			__func__, err);
 		return err;
 	}
-	err = gpio_direction_output(grouper_lvds_stdby, 1);
+	err = gpio_direction_output(kai_lvds_stdby, 1);
 	if (err < 0) {
 		pr_err("%s: gpio_direction_output failed %d\n",
 			__func__, err);
-			gpio_free(grouper_lvds_stdby);
+			gpio_free(kai_lvds_stdby);
 		return err;
 	}
-	err = gpio_request(grouper_lvds_rst, "lvds_rst");
+	err = gpio_request(kai_lvds_rst, "lvds_rst");
 	if (err < 0) {
 		pr_err("%s: gpio_request failed %d\n",
 			__func__, err);
 		return err;
 	}
-	err = gpio_direction_output(grouper_lvds_rst, 1);
+	err = gpio_direction_output(kai_lvds_rst, 1);
 	if (err < 0) {
 		pr_err("%s: gpio_direction_output failed %d\n",
 			__func__, err);
-			gpio_free(grouper_lvds_rst);
+			gpio_free(kai_lvds_rst);
 		return err;
 	}
-
 	if (board_info.fab == BOARD_FAB_A00) {
-		err = gpio_request(grouper_lvds_rs_a00, "lvds_rs");
+		err = gpio_request(kai_lvds_rs_a00, "lvds_rs");
 		if (err < 0) {
 			pr_err("%s: gpio_request failed %d\n",
 				__func__, err);
 			return err;
 		}
-		err = gpio_direction_output(grouper_lvds_rs_a00, 0);
+		err = gpio_direction_output(kai_lvds_rs_a00, 0);
 		if (err < 0) {
 			pr_err("%s: gpio_direction_output failed %d\n",
 				__func__, err);
-			gpio_free(grouper_lvds_rs_a00);
+			gpio_free(kai_lvds_rs_a00);
 			return err;
 		}
 	} else {
-		err = gpio_request(grouper_lvds_rs, "lvds_rs");
+		err = gpio_request(kai_lvds_rs, "lvds_rs");
 		if (err < 0) {
 			pr_err("%s: gpio_request failed %d\n",
 				__func__, err);
 			return err;
 		}
-		err = gpio_direction_output(grouper_lvds_rs, 0);
+		err = gpio_direction_output(kai_lvds_rs, 0);
 		if (err < 0) {
 			pr_err("%s: gpio_direction_output failed %d\n",
 				__func__, err);
-			gpio_free(grouper_lvds_rs);
+			gpio_free(kai_lvds_rs);
 			return err;
 		}
 	}
 
-	err = gpio_request(grouper_lvds_lr, "lvds_lr");
+	err = gpio_request(kai_lvds_lr, "lvds_lr");
 	if (err < 0) {
 		pr_err("%s: gpio_request failed %d\n",
 			__func__, err);
 		return err;
 	}
-	err = gpio_direction_output(grouper_lvds_lr, 1);
+	err = gpio_direction_output(kai_lvds_lr, 1);
 	if (err < 0) {
 		pr_err("%s: gpio_direction_output failed %d\n",
 			__func__, err);
-		gpio_free(grouper_lvds_lr);
-		return err;
-	}
-	err = gpio_request(grouper_lvds_shutdown, "lvds_shutdown");
-	if (err < 0) {
-		pr_err("%s: gpio_request failed %d\n",
-			__func__, err);
-		return err;
-	}
-	err = gpio_direction_output(grouper_lvds_shutdown, 1);
-	if (err < 0) {
-		pr_err("%s: gpio_direction_output failed %d\n",
-			__func__, err);
-		gpio_free(grouper_lvds_shutdown);
+		gpio_free(kai_lvds_lr);
 		return err;
 	}
 
-	err = gpio_request(grouper_hdmi_hpd, "hdmi_hpd");
+	err = gpio_request(kai_lvds_shutdown, "lvds_shutdown");
 	if (err < 0) {
 		pr_err("%s: gpio_request failed %d\n",
 			__func__, err);
 		return err;
 	}
-	err = gpio_direction_input(grouper_hdmi_hpd);
+	err = gpio_direction_output(kai_lvds_shutdown, 1);
+	if (err < 0) {
+		pr_err("%s: gpio_direction_output failed %d\n",
+			__func__, err);
+		gpio_free(kai_lvds_shutdown);
+		return err;
+	}
+
+	err = gpio_request(kai_hdmi_hpd, "hdmi_hpd");
+	if (err < 0) {
+		pr_err("%s: gpio_request failed %d\n",
+			__func__, err);
+		return err;
+	}
+	err = gpio_direction_input(kai_hdmi_hpd);
 	if (err < 0) {
 		pr_err("%s: gpio_direction_input failed %d\n",
 			__func__, err);
-		gpio_free(grouper_hdmi_hpd);
+		gpio_free(kai_hdmi_hpd);
 		return err;
 	}
 
-	err = platform_add_devices(grouper_gfx_devices,
-				ARRAY_SIZE(grouper_gfx_devices));
+	err = platform_add_devices(kai_gfx_devices,
+				ARRAY_SIZE(kai_gfx_devices));
 
 #ifdef CONFIG_TEGRA_GRHOST
 	phost1x = tegra3_register_host1x_devices();
@@ -751,30 +748,30 @@ int __init grouper_panel_init(void)
 #endif
 
 #if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
-	res = platform_get_resource_byname(&grouper_disp1_device,
+	res = platform_get_resource_byname(&kai_disp1_device,
 					 IORESOURCE_MEM, "fbmem");
 	res->start = tegra_fb_start;
 	res->end = tegra_fb_start + tegra_fb_size - 1;
 #endif
 
 	/* Copy the bootloader fb to the fb. */
-//	__tegra_move_framebuffer(&grouper_nvmap_device,
-//		tegra_fb_start, tegra_bootloader_fb_start,
-//				min(tegra_fb_size, tegra_bootloader_fb_size));
+	__tegra_move_framebuffer(&kai_nvmap_device,
+		tegra_fb_start, tegra_bootloader_fb_start,
+				min(tegra_fb_size, tegra_bootloader_fb_size));
 
 #if defined(CONFIG_TEGRA_GRHOST) && defined(CONFIG_TEGRA_DC)
 	if (!err) {
-		grouper_disp1_device.dev.parent = &phost1x->dev;
-		err = platform_device_register(&grouper_disp1_device);
+		kai_disp1_device.dev.parent = &phost1x->dev;
+		err = platform_device_register(&kai_disp1_device);
 	}
 
-	res = platform_get_resource_byname(&grouper_disp2_device,
+	res = platform_get_resource_byname(&kai_disp2_device,
 					 IORESOURCE_MEM, "fbmem");
 	res->start = tegra_fb2_start;
 	res->end = tegra_fb2_start + tegra_fb2_size - 1;
 	if (!err) {
-		grouper_disp2_device.dev.parent = &phost1x->dev;
-		err = platform_device_register(&grouper_disp2_device);
+		kai_disp2_device.dev.parent = &phost1x->dev;
+		err = platform_device_register(&kai_disp2_device);
 	}
 #endif
 
